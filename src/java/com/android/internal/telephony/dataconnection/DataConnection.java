@@ -452,7 +452,11 @@ public final class DataConnection extends StateMachine {
 
         mPhone.mCi.setupDataCall(
                 Integer.toString(getRilRadioTechnology(cp.mRilRat)),
+<<<<<<< HEAD
                 Integer.toString(cp.mProfileId),
+=======
+                Integer.toString(dataProfileId),
+>>>>>>> b9f3d1e... Fix "telephony: DataConnection: support old RILs"
                 mApnSetting.apn, mApnSetting.user, mApnSetting.password,
                 Integer.toString(authType),
                 protocol, msg);
