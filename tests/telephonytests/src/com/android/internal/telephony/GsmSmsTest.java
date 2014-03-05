@@ -19,7 +19,6 @@ package com.android.internal.telephony;
 import android.telephony.TelephonyManager;
 import android.test.AndroidTestCase;
 import android.test.suitebuilder.annotation.SmallTest;
-import android.test.suitebuilder.annotation.Suppress;
 
 import com.android.internal.telephony.gsm.SmsMessage;
 import com.android.internal.util.HexDump;
@@ -274,7 +273,6 @@ public class GsmSmsTest extends AndroidTestCase {
         }
     }
 
-    @Suppress
     @SmallTest
     public void testFragmentTurkishText() throws Exception {
         boolean isGsmPhone = (TelephonyManager.getDefault().getPhoneType() ==

@@ -81,9 +81,6 @@ public final class GsmCallTracker extends CallTracker {
     GsmConnection mPendingMO;
     boolean mHangupPendingMO;
 
-    boolean callSwitchPending = false;
-
-
     //Used to re-request the list of current calls
     boolean mSlowModem = (SystemProperties.getInt("ro.telephony.slowModem",0) != 0);
     GSMPhone mPhone;
@@ -195,9 +192,6 @@ public final class GsmCallTracker extends CallTracker {
         // note that this triggers call state changed notif
         clearDisconnected();
 
-        // flag used to determine if mCi.dial needs to be sent now or later
-        boolean isDialRequestPending = false;
-
         if (!canDial()) {
             throw new CallStateException("cannot dial in current state");
         }
@@ -210,14 +204,13 @@ public final class GsmCallTracker extends CallTracker {
             // but the dial might fail before this happens
             // and we need to make sure the foreground call is clear
             // for the newly dialed connection
-            switchWaitingOrHoldingAndActive(clirMode);
+            switchWaitingOrHoldingAndActive();
 
             // Fake local state so that
             // a) foregroundCall is empty for the newly dialed connection
             // b) hasNonHangupStateChanged remains false in the
             // next poll, so that we don't clear a failed dialing call
             fakeHoldForegroundBeforeDial();
-            isDialRequestPending = true;
         }
 
         if (mForegroundCall.getState() != GsmCall.State.IDLE) {
@@ -239,15 +232,10 @@ public final class GsmCallTracker extends CallTracker {
             // and will mark it as dropped.
             pollCallsWhenSafe();
         } else {
-            // if isDialRequestPending is true, we would postpone the dial
-            // request for the second call till we get the hold confirmation
-            // for the first call.
-            if (!isDialRequestPending) {
-                // Always unmute when initiating a new call
-                setMute(false);
+            // Always unmute when initiating a new call
+            setMute(false);
 
-                mCi.dial(mPendingMO.mAddress, clirMode, uusInfo, obtainCompleteMessage());
-            }
+            mCi.dial(mPendingMO.mAddress, clirMode, uusInfo, obtainCompleteMessage());
         }
 
         updatePhoneState();
@@ -269,26 +257,6 @@ public final class GsmCallTracker extends CallTracker {
     Connection
     dial(String dialString, int clirMode) throws CallStateException {
         return dial(dialString, clirMode, null);
-    }
-
-    void
-    dialPendingCall(int clirMode) {
-        if (mPendingMO.mAddress == null || mPendingMO.mAddress.length() == 0
-                || mPendingMO.mAddress.indexOf(PhoneNumberUtils.WILD) >= 0) {
-            // Phone number is invalid
-            mPendingMO.mCause = Connection.DisconnectCause.INVALID_NUMBER;
-
-            // handlePollCalls() will notice this call not present
-            // and will mark it as dropped.
-            pollCallsWhenSafe();
-        } else {
-            // Always unmute when initiating a new call
-            setMute(false);
-
-            mCi.dial(mPendingMO.mAddress, clirMode, obtainCompleteMessage());
-        }
-        updatePhoneState();
-        mPhone.notifyPreciseCallStateChanged();
     }
 
     void
@@ -326,31 +294,15 @@ public final class GsmCallTracker extends CallTracker {
         // Should we bother with this check?
         if (mRingingCall.getState() == GsmCall.State.INCOMING) {
             throw new CallStateException("cannot be in the incoming state");
-        } else if (callSwitchPending == false) {
+        } else {
             mCi.switchWaitingOrHoldingAndActive(
                     obtainCompleteMessage(EVENT_SWITCH_RESULT));
-            callSwitchPending = true;
-        } else {
-            Rlog.w(LOG_TAG, "Call Switch request ignored due to pending response");
         }
     }
 
     void
     conference() {
         mCi.conference(obtainCompleteMessage(EVENT_CONFERENCE_RESULT));
-    }
-
-    void
-    switchWaitingOrHoldingAndActive(int clirMode) throws CallStateException {
-        if (mRingingCall.getState() == GsmCall.State.INCOMING) {
-            throw new CallStateException("cannot be in the incoming state");
-        } else if (callSwitchPending == false) {
-            mCi.switchWaitingOrHoldingAndActive(
-                    obtainCompleteMessage(EVENT_SWITCH_RESULT, clirMode));
-            callSwitchPending = true;
-        } else {
-            Rlog.w(LOG_TAG, "Call Switch request ignored due to pending response");
-        }
     }
 
     void
@@ -427,36 +379,18 @@ public final class GsmCallTracker extends CallTracker {
         mLastRelevantPoll = null;
         mNeedsPoll = true;
 
-        if (DBG_POLL) {
-            log("obtainCompleteMessage: pendingOperations=" + mPendingOperations +
-                    ", needsPoll=" + mNeedsPoll);
-        }
+        if (DBG_POLL) log("obtainCompleteMessage: pendingOperations=" +
+                mPendingOperations + ", needsPoll=" + mNeedsPoll);
 
         return obtainMessage(what);
-    }
-
-    private Message
-    obtainCompleteMessage(int what, int clirMode) {
-        mPendingOperations++;
-        mLastRelevantPoll = null;
-        mNeedsPoll = true;
-
-        if (DBG_POLL) {
-            log("obtainCompleteMessage: pendingOperations=" + mPendingOperations +
-                    ", needsPoll=" + mNeedsPoll);
-        }
-
-        return obtainMessage(what, clirMode);
     }
 
     private void
     operationComplete() {
         mPendingOperations--;
 
-        if (DBG_POLL) {
-            log("operationComplete: pendingOperations=" + mPendingOperations +
-                    ", needsPoll=" + mNeedsPoll);
-        }
+        if (DBG_POLL) log("operationComplete: pendingOperations=" +
+                mPendingOperations + ", needsPoll=" + mNeedsPoll);
 
         if (mPendingOperations == 0 && mNeedsPoll) {
             mLastRelevantPoll = obtainMessage(EVENT_POLL_CALLS_RESULT);
@@ -543,9 +477,8 @@ public final class GsmCallTracker extends CallTracker {
                 }
             }
 
-            if (DBG_POLL) {
-                log("poll: conn[i=" + i + "]=" + conn+", dc=" + dc);
-            }
+            if (DBG_POLL) log("poll: conn[i=" + i + "]=" +
+                    conn+", dc=" + dc);
 
             if (conn == null && dc != null) {
                 // Connection appeared in CLCC response that we don't know about
@@ -943,9 +876,8 @@ public final class GsmCallTracker extends CallTracker {
                 ar = (AsyncResult)msg.obj;
 
                 if (msg == mLastRelevantPoll) {
-                    if (DBG_POLL) {
-                        log("handle EVENT_POLL_CALL_RESULT: set needsPoll=F");
-                    }
+                    if (DBG_POLL) log(
+                            "handle EVENT_POLL_CALL_RESULT: set needsPoll=F");
                     mNeedsPoll = false;
                     mLastRelevantPoll = null;
                     handlePollCalls((AsyncResult)msg.obj);
@@ -957,24 +889,7 @@ public final class GsmCallTracker extends CallTracker {
                 operationComplete();
             break;
 
-            // This event will also be called when the call is placed
-            // on hold while there is another dialed call. If Hold succeeds,
-            // dialPendingCall would be invoked.Else getCurrentCalls is anyways
-            // invoked through operationComplete,which will get the new
-            // call states depending on which UI would be updated.
             case EVENT_SWITCH_RESULT:
-                callSwitchPending = false;
-                ar = (AsyncResult)msg.obj;
-                if (ar.exception != null) {
-                    mPhone.notifySuppServiceFailed(getFailedService(msg.what));
-                } else {
-                    if (ar.userObj != null) {
-                        dialPendingCall((Integer) ar.userObj);
-                    }
-                }
-                operationComplete();
-            break;
-
             case EVENT_CONFERENCE_RESULT:
             case EVENT_SEPARATE_RESULT:
             case EVENT_ECT_RESULT:

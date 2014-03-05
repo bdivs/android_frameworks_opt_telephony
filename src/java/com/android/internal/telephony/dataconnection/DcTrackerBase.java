@@ -1,10 +1,5 @@
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
- * Not a Contribution.
  * Copyright (C) 2006 The Android Open Source Project
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
- *
- * Not a Contribution.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,14 +63,9 @@ import com.android.internal.util.ArrayUtils;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Enumeration;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map.Entry;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -122,7 +112,7 @@ public abstract class DcTrackerBase extends Handler {
     // TODO: move away from static state once 5587429 is fixed.
     protected static boolean sPolicyDataEnabled = true;
 
-    protected boolean[] mDataEnabled = new boolean[DctConstants.APN_NUM_TYPES];
+    private boolean[] mDataEnabled = new boolean[DctConstants.APN_NUM_TYPES];
 
     private int mEnabledCount = 0;
 
@@ -266,24 +256,6 @@ public abstract class DcTrackerBase extends Handler {
     protected final ConcurrentHashMap<String, ApnContext> mApnContexts =
                                     new ConcurrentHashMap<String, ApnContext>();
 
-    /** Priorities for APN_TYPEs. package level access, used by ApnContext */
-    static LinkedHashMap<String, Integer> mApnPriorities =
-        new LinkedHashMap<String, Integer>() {
-            {
-                put(PhoneConstants.APN_TYPE_IA,      8);
-                put(PhoneConstants.APN_TYPE_CBS,     7);
-                put(PhoneConstants.APN_TYPE_IMS,     6);
-                put(PhoneConstants.APN_TYPE_FOTA,    5);
-                put(PhoneConstants.APN_TYPE_HIPRI,   4);
-                put(PhoneConstants.APN_TYPE_DUN,     3);
-                put(PhoneConstants.APN_TYPE_SUPL,    2);
-                put(PhoneConstants.APN_TYPE_MMS,     1);
-                put(PhoneConstants.APN_TYPE_DEFAULT, 0);
-            }
-        };
-
-    /** Currently active data profile */
-    protected DataProfile mActiveDp;
     /** kept in sync with mApnContexts
      * Higher numbers are higher priority and sorted so highest priority is first */
     protected final PriorityQueue<ApnContext>mPrioritySortedApnContexts =
@@ -294,11 +266,14 @@ public abstract class DcTrackerBase extends Handler {
                 }
             } );
 
-    /** Holds all data profiles */
-    protected ArrayList<DataProfile> mAllDps = new ArrayList<DataProfile>();
+    /* Currently active APN */
+    protected ApnSetting mActiveApn;
 
-    /** preferred data profile */
-    protected DataProfile mPreferredDp = null;
+    /** allApns holds all apns */
+    protected ArrayList<ApnSetting> mAllApnSettings = null;
+
+    /** preferred apn */
+    protected ApnSetting mPreferredApn = null;
 
     /** Is packet service restricted by network */
     protected boolean mIsPsRestricted = false;
@@ -620,24 +595,18 @@ public abstract class DcTrackerBase extends Handler {
         return mActivity;
     }
 
-    private void setActivity(DctConstants.Activity activity) {
-        log("setActivity ="+activity);
-        mActivity = activity;
-        mPhone.notifyDataActivity();
-    }
-
     public boolean isApnTypeActive(String type) {
         // TODO: support simultaneous with List instead
         if (PhoneConstants.APN_TYPE_DUN.equals(type)) {
-            DataProfile dunApn = fetchDunApn();
+            ApnSetting dunApn = fetchDunApn();
             if (dunApn != null) {
-                return ((mActiveDp != null) && (dunApn.toHash().equals(mActiveDp.toHash())));
+                return ((mActiveApn != null) && (dunApn.toString().equals(mActiveApn.toString())));
             }
         }
-        return mActiveDp != null && mActiveDp.canHandleType(type);
+        return mActiveApn != null && mActiveApn.canHandleType(type);
     }
 
-    protected DataProfile fetchDunApn() {
+    protected ApnSetting fetchDunApn() {
         if (SystemProperties.getBoolean("net.tethering.noprovisioning", false)) {
             log("fetchDunApn: net.tethering.noprovisioning=true ret: null");
             return null;
@@ -663,8 +632,8 @@ public abstract class DcTrackerBase extends Handler {
 
     public String[] getActiveApnTypes() {
         String[] result;
-        if (mActiveDp != null) {
-            result = mActiveDp.types;
+        if (mActiveApn != null) {
+            result = mActiveApn.types;
         } else {
             result = new String[1];
             result[0] = PhoneConstants.APN_TYPE_DEFAULT;
@@ -675,8 +644,8 @@ public abstract class DcTrackerBase extends Handler {
     /** TODO: See if we can remove */
     public String getActiveApnString(String apnType) {
         String result = null;
-        if (mActiveDp != null) {
-            result = mActiveDp.apn;
+        if (mActiveApn != null) {
+            result = mActiveApn.apn;
         }
         return result;
     }
@@ -729,12 +698,8 @@ public abstract class DcTrackerBase extends Handler {
     protected abstract void onCleanUpConnection(boolean tearDown, int apnId, String reason);
     protected abstract void onCleanUpAllConnections(String cause);
     public abstract boolean isDataPossible(String apnType);
-    protected abstract boolean onUpdateIcc();
+    protected abstract void onUpdateIcc();
     protected abstract void completeConnection(ApnContext apnContext);
-    /* If multiple calls (mms, supl etc) cannot be supported at the same time
-     * (e.g: MPDN not supported), disconnect a lower priority call
-     */
-    protected abstract boolean disconnectOneLowerPriorityCall(String apnType);
 
     @Override
     public void handleMessage(Message msg) {
@@ -969,14 +934,6 @@ public abstract class DcTrackerBase extends Handler {
             }
             case DctConstants.EVENT_RESTART_RADIO: {
                 restartRadio();
-                break;
-            }
-            case DctConstants.CMD_NET_STAT_POLL: {
-                if (msg.arg1 == DctConstants.ENABLED) {
-                    handleStartNetStatPoll((DctConstants.Activity)msg.obj);
-                } else if (msg.arg1 == DctConstants.DISABLED) {
-                    handleStopNetStatPoll((DctConstants.Activity)msg.obj);
-                }
                 break;
             }
             default:
@@ -1349,6 +1306,7 @@ public abstract class DcTrackerBase extends Handler {
 
     protected void onSetUserDataEnabled(boolean enabled) {
         synchronized (mDataEnabledLock) {
+            final boolean prevEnabled = getAnyDataEnabled();
             if (mUserDataEnabled != enabled) {
                 mUserDataEnabled = enabled;
                 Settings.Global.putInt(mPhone.getContext().getContentResolver(),
@@ -1361,11 +1319,12 @@ public abstract class DcTrackerBase extends Handler {
                         notifyOffApnsOfAvailability(Phone.REASON_DATA_DISABLED);
                     }
                 }
-
-                if (enabled) {
-                    onTrySetupData(Phone.REASON_DATA_ENABLED);
-                } else {
-                    onCleanUpAllConnections(Phone.REASON_DATA_DISABLED);
+                if (prevEnabled != getAnyDataEnabled()) {
+                    if (!prevEnabled) {
+                        onTrySetupData(Phone.REASON_DATA_ENABLED);
+                    } else {
+                        onCleanUpAllConnections(Phone.REASON_DATA_DISABLED);
+                    }
                 }
             }
         }
@@ -1376,34 +1335,18 @@ public abstract class DcTrackerBase extends Handler {
 
     protected void onSetPolicyDataEnabled(boolean enabled) {
         synchronized (mDataEnabledLock) {
+            final boolean prevEnabled = getAnyDataEnabled();
             if (sPolicyDataEnabled != enabled) {
                 sPolicyDataEnabled = enabled;
-                if (enabled) {
-                    onTrySetupData(Phone.REASON_DATA_ENABLED);
-                } else {
-                    onCleanUpAllConnections(Phone.REASON_DATA_DISABLED);
+                if (prevEnabled != getAnyDataEnabled()) {
+                    if (!prevEnabled) {
+                        onTrySetupData(Phone.REASON_DATA_ENABLED);
+                    } else {
+                        onCleanUpAllConnections(Phone.REASON_DATA_DISABLED);
+                    }
                 }
             }
         }
-    }
-
-    /* Return the list of ApnContexts based on their priorities */
-    protected List<ApnContext> getPrioritySortedApnContextList() {
-
-        ArrayList<ApnContext> sortedList = new ArrayList<ApnContext>();
-
-        /*
-         *  Get the prioritized enumerated APN Types and retrieve the APN
-         *  context associated with it from the list of APN contexts
-         */
-        Iterator apnTypes = mApnPriorities.keySet().iterator();
-        while(apnTypes.hasNext()) {
-            ApnContext apnContext = mApnContexts.get(apnTypes.next());
-            if (apnContext != null)
-                sortedList.add(apnContext);
-        }
-
-        return sortedList;
     }
 
     protected String getReryConfig(boolean forDefault) {
@@ -1445,38 +1388,10 @@ public abstract class DcTrackerBase extends Handler {
         }
     }
 
-    public void sendStartNetStatPoll(DctConstants.Activity activity) {
-        Message msg = obtainMessage(DctConstants.CMD_NET_STAT_POLL,
-                DctConstants.ENABLED,
-                -1,
-                activity);
-        sendMessage(msg);
-    }
-
-    protected void handleStartNetStatPoll(DctConstants.Activity activity) {
-        startNetStatPoll();
-        startDataStallAlarm(DATA_STALL_NOT_SUSPECTED);
-        setActivity(activity);
-    }
-
     protected void stopNetStatPoll() {
         mNetStatPollEnabled = false;
         removeCallbacks(mPollNetStat);
         if (DBG) log("stopNetStatPoll");
-    }
-
-    public void sendStopNetStatPoll(DctConstants.Activity activity) {
-        Message msg = obtainMessage(DctConstants.CMD_NET_STAT_POLL,
-                DctConstants.DISABLED,
-                -1,
-                activity);
-        sendMessage(msg);
-    }
-
-    protected void handleStopNetStatPoll(DctConstants.Activity activity) {
-        stopNetStatPoll();
-        stopDataStallAlarm();
-        setActivity(activity);
     }
 
     public void updateDataActivity() {
@@ -1744,18 +1659,18 @@ public abstract class DcTrackerBase extends Handler {
     }
 
     protected void setInitialAttachApn() {
-        DataProfile iaApnSetting = null;
-        DataProfile defaultApnSetting = null;
-        DataProfile firstApnSetting = null;
+        ApnSetting iaApnSetting = null;
+        ApnSetting defaultApnSetting = null;
+        ApnSetting firstApnSetting = null;
 
-        log("setInitialApn: E mPreferredApn=" + mPreferredDp);
+        log("setInitialApn: E mPreferredApn=" + mPreferredApn);
 
-        if (mAllDps != null && !mAllDps.isEmpty()) {
-            firstApnSetting = mAllDps.get(0);
+        if (mAllApnSettings != null && !mAllApnSettings.isEmpty()) {
+            firstApnSetting = mAllApnSettings.get(0);
             log("setInitialApn: firstApnSetting=" + firstApnSetting);
 
             // Search for Initial APN setting and the first apn that can handle default
-            for (DataProfile apn : mAllDps) {
+            for (ApnSetting apn : mAllApnSettings) {
                 // Can't use apn.canHandleType(), as that returns true for APNs that have no type.
                 if (ArrayUtils.contains(apn.types, PhoneConstants.APN_TYPE_IA)) {
                     // The Initial Attach APN is highest priority so use it if there is one
@@ -1777,13 +1692,13 @@ public abstract class DcTrackerBase extends Handler {
         //   3) The first apn that than handle APN_TYPE_DEFAULT
         //   4) The first APN we can find.
 
-        DataProfile initialAttachApnSetting = null;
+        ApnSetting initialAttachApnSetting = null;
         if (iaApnSetting != null) {
             if (DBG) log("setInitialAttachApn: using iaApnSetting");
             initialAttachApnSetting = iaApnSetting;
-        } else if (mPreferredDp != null) {
+        } else if (mPreferredApn != null) {
             if (DBG) log("setInitialAttachApn: using mPreferredApn");
-            initialAttachApnSetting = mPreferredDp;
+            initialAttachApnSetting = mPreferredApn;
         } else if (defaultApnSetting != null) {
             if (DBG) log("setInitialAttachApn: using defaultApnSetting");
             initialAttachApnSetting = defaultApnSetting;
@@ -1943,18 +1858,18 @@ public abstract class DcTrackerBase extends Handler {
             pw.println(" mApnContexts=null");
         }
         pw.flush();
-        pw.println(" mActiveDp=" + mActiveDp);
-        ArrayList<DataProfile> apnSettings = mAllDps;
+        pw.println(" mActiveApn=" + mActiveApn);
+        ArrayList<ApnSetting> apnSettings = mAllApnSettings;
         if (apnSettings != null) {
-            pw.println(" mAllDps size=" + apnSettings.size());
+            pw.println(" mAllApnSettings size=" + apnSettings.size());
             for (int i=0; i < apnSettings.size(); i++) {
-                pw.printf(" mAllDps[%d]: %s\n", i, apnSettings.get(i));
+                pw.printf(" mAllApnSettings[%d]: %s\n", i, apnSettings.get(i));
             }
             pw.flush();
         } else {
-            pw.println(" mAllDps=null");
+            pw.println(" mAllApnSettings=null");
         }
-        pw.println(" mPreferredDp=" + mPreferredDp);
+        pw.println(" mPreferredApn=" + mPreferredApn);
         pw.println(" mIsPsRestricted=" + mIsPsRestricted);
         pw.println(" mIsDisposed=" + mIsDisposed);
         pw.println(" mIntentReceiver=" + mIntentReceiver);

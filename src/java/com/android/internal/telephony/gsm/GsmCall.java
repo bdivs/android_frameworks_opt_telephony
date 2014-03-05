@@ -27,7 +27,7 @@ import java.util.List;
 /**
  * {@hide}
  */
-public class GsmCall extends Call {
+class GsmCall extends Call {
     /*************************** Instance Variables **************************/
 
     /*package*/ GsmCallTracker mOwner;

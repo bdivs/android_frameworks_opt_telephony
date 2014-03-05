@@ -45,8 +45,6 @@ public abstract class Call {
         }
     }
 
-    public boolean isMpty = false;
-    private String[] mConfUriList;
 
     /* Instance Variables */
 
@@ -146,14 +144,6 @@ public abstract class Call {
         }
 
         return earliest;
-    }
-
-    public String[] getConfUriList() {
-        return mConfUriList;
-    }
-
-    public void setConfUriList(String[] urilist) {
-        mConfUriList = urilist;
     }
 
     public long

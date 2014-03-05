@@ -27,7 +27,6 @@ import android.telephony.Rlog;
 import android.telephony.ServiceState;
 
 import com.android.internal.telephony.CommandsInterface;
-import com.android.internal.telephony.uicc.IccCardApplicationStatus.AppState;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -73,27 +72,25 @@ import java.io.PrintWriter;
  * and {@link com.android.internal.telephony.uicc.IccCardProxy}
  */
 public class UiccController extends Handler {
-    protected static final boolean DBG = true;
-    protected static final String LOG_TAG = "UiccController";
+    private static final boolean DBG = true;
+    private static final String LOG_TAG = "UiccController";
 
     public static final int APP_FAM_UNKNOWN =  -1;
     public static final int APP_FAM_3GPP =  1;
     public static final int APP_FAM_3GPP2 = 2;
     public static final int APP_FAM_IMS   = 3;
 
-    protected static final int EVENT_ICC_STATUS_CHANGED = 1;
-    protected static final int EVENT_GET_ICC_STATUS_DONE = 2;
-    protected static final int EVENT_RADIO_UNAVAILABLE = 3;
-    private static final int EVENT_REFRESH = 4;
+    private static final int EVENT_ICC_STATUS_CHANGED = 1;
+    private static final int EVENT_GET_ICC_STATUS_DONE = 2;
 
-    protected static final Object mLock = new Object();
-    protected static UiccController mInstance;
+    private static final Object mLock = new Object();
+    private static UiccController mInstance;
 
-    protected Context mContext;
+    private Context mContext;
     private CommandsInterface mCi;
-    protected UiccCard mUiccCard;
+    private UiccCard mUiccCard;
 
-    protected RegistrantList mIccChangedRegistrants = new RegistrantList();
+    private RegistrantList mIccChangedRegistrants = new RegistrantList();
 
     public static UiccController make(Context c, CommandsInterface ci) {
         synchronized (mLock) {
@@ -112,22 +109,6 @@ public class UiccController extends Handler {
                         "UiccController.getInstance can't be called before make()");
             }
             return mInstance;
-        }
-    }
-
-    public static void destroy() {
-        synchronized (mLock) {
-            if (mInstance == null) {
-                throw new RuntimeException(
-                        "UiccController.destroy() should only be called after make()");
-            }
-            mInstance.mCi.unregisterForIccStatusChanged(mInstance);
-            mInstance.mCi.unregisterForAvailable(mInstance);
-            mInstance.mCi.unregisterForNotAvailable(mInstance);
-            mInstance.mCi.unregisterForIccRefresh(mInstance);
-            mInstance.mCi = null;
-            mInstance.mContext = null;
-            mInstance = null;
         }
     }
 
@@ -215,47 +196,10 @@ public class UiccController extends Handler {
                     AsyncResult ar = (AsyncResult)msg.obj;
                     onGetIccCardStatusDone(ar);
                     break;
-                case EVENT_RADIO_UNAVAILABLE:
-                    if (DBG) log("EVENT_RADIO_UNAVAILABLE ");
-                    disposeCard(mUiccCard);
-                    mUiccCard = null;
-                    mIccChangedRegistrants.notifyRegistrants();
-                    break;
-                case EVENT_REFRESH:
-                    ar = (AsyncResult)msg.obj;
-                    if (DBG) log("Sim REFRESH received");
-                    if (ar.exception == null) {
-                        handleRefresh((IccRefreshResponse)ar.result);
-                    } else {
-                        log ("Exception on refresh " + ar.exception);
-                    }
-                    break;
                 default:
                     Rlog.e(LOG_TAG, " Unknown Event " + msg.what);
             }
         }
-    }
-
-    // Destroys the card object
-    protected synchronized void disposeCard(UiccCard uiccCard) {
-        if (DBG) log("Disposing card");
-        if (uiccCard != null) {
-            uiccCard.dispose();
-        }
-    }
-
-    private void handleRefresh(IccRefreshResponse refreshResponse){
-        if (refreshResponse == null) {
-            log("handleRefresh received without input");
-            return;
-        }
-
-        // Let the card know right away that a refresh has occurred
-        if (mUiccCard != null) {
-            mUiccCard.onRefresh(refreshResponse);
-        }
-        // The card status could have changed. Get the latest state
-        mCi.getIccCardStatus(obtainMessage(EVENT_GET_ICC_STATUS_DONE));
     }
 
     private UiccController(Context c, CommandsInterface ci) {
@@ -263,9 +207,8 @@ public class UiccController extends Handler {
         mContext = c;
         mCi = ci;
         mCi.registerForIccStatusChanged(this, EVENT_ICC_STATUS_CHANGED, null);
-        mCi.registerForAvailable(this, EVENT_ICC_STATUS_CHANGED, null);
-        mCi.registerForNotAvailable(this, EVENT_RADIO_UNAVAILABLE, null);
-        mCi.registerForIccRefresh(this, EVENT_REFRESH, null);
+        // TODO remove this once modem correctly notifies the unsols
+        mCi.registerForOn(this, EVENT_ICC_STATUS_CHANGED, null);
     }
 
     private synchronized void onGetIccCardStatusDone(AsyncResult ar) {
@@ -279,10 +222,10 @@ public class UiccController extends Handler {
         IccCardStatus status = (IccCardStatus)ar.result;
 
         if (mUiccCard == null) {
-            if (DBG) log("Creating a new card");
+            //Create new card
             mUiccCard = new UiccCard(mContext, mCi, status);
         } else {
-            if (DBG) log("Update already existing card");
+            //Update already existing card
             mUiccCard.update(mContext, mCi , status);
         }
 
@@ -290,10 +233,7 @@ public class UiccController extends Handler {
         mIccChangedRegistrants.notifyRegistrants();
     }
 
-    protected UiccController() {
-    }
-
-    private static void log(String string) {
+    private void log(String string) {
         Rlog.d(LOG_TAG, string);
     }
 

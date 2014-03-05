@@ -65,8 +65,6 @@ public final class IsimUiccRecords extends IccRecords implements IsimRecords {
     public IsimUiccRecords(UiccCardApplication app, Context c, CommandsInterface ci) {
         super(app, c, ci);
 
-        mAdnCache = new AdnRecordCache(mFh);
-
         mRecordsRequested = false;  // No load request is made till SIM ready
 
         // recordsToLoad is set to 0 because no requests are made yet
@@ -253,11 +251,6 @@ public final class IsimUiccRecords extends IccRecords implements IsimRecords {
     }
 
     @Override
-    protected void handleFileUpdate(int efid) {
-        // We do not handle it in Isim
-    }
-
-    @Override
     public void onRefresh(boolean fileChanged, int[] fileList) {
         // We do not handle it in Isim
     }
@@ -293,9 +286,4 @@ public final class IsimUiccRecords extends IccRecords implements IsimRecords {
         pw.println(" mIsimImpu[]=" + Arrays.toString(mIsimImpu));
         pw.flush();
     }
-
-    public int getVoiceMessageCount() {
-        return 0; // Not applicable to Isim
-    }
-
 }

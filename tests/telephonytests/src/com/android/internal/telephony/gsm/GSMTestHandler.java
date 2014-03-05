@@ -26,7 +26,6 @@ import android.telephony.Rlog;
 
 import com.android.internal.telephony.gsm.GSMPhone;
 import com.android.internal.telephony.test.SimulatedCommands;
-import com.android.internal.telephony.uicc.UiccController;
 import com.android.internal.telephony.TestPhoneNotifier;
 
 /**
@@ -53,7 +52,6 @@ public class GSMTestHandler extends HandlerThread implements Handler.Callback {
     @Override
     protected void onLooperPrepared() {
         sc = new SimulatedCommands();
-        UiccController.make(mContext, sc);
         mGSMPhone = new GSMPhone(mContext, sc, new TestPhoneNotifier(), true);
         mHandler = new Handler(getLooper(), this);
         synchronized (this) {
@@ -79,7 +77,6 @@ public class GSMTestHandler extends HandlerThread implements Handler.Callback {
     public void cleanup() {
         Looper looper = getLooper();
         if (looper != null) looper.quit();
-        UiccController.destroy();
         mHandler = null;
     }
 

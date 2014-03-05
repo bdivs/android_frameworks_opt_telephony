@@ -59,7 +59,7 @@ public class GsmSmsCbMessage {
      *
      * @param pdus PDU bytes
      */
-    public static SmsCbMessage createSmsCbMessage(SmsCbHeader header, SmsCbLocation location,
+    static SmsCbMessage createSmsCbMessage(SmsCbHeader header, SmsCbLocation location,
             byte[][] pdus) throws IllegalArgumentException {
         if (header.isEtwsPrimaryNotification()) {
             return new SmsCbMessage(SmsCbMessage.MESSAGE_FORMAT_3GPP,
