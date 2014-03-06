@@ -207,8 +207,14 @@ public class UiccController extends Handler {
         mContext = c;
         mCi = ci;
         mCi.registerForIccStatusChanged(this, EVENT_ICC_STATUS_CHANGED, null);
+<<<<<<< HEAD
         // TODO remove this once modem correctly notifies the unsols
         mCi.registerForOn(this, EVENT_ICC_STATUS_CHANGED, null);
+=======
+        mCi.registerForOn(this, EVENT_ICC_STATUS_CHANGED, null);
+        mCi.registerForNotAvailable(this, EVENT_RADIO_UNAVAILABLE, null);
+        mCi.registerForIccRefresh(this, EVENT_REFRESH, null);
+>>>>>>> e8d3dd9... UiccController: Query GET_SIM_STATUS when radio state is ON
     }
 
     private synchronized void onGetIccCardStatusDone(AsyncResult ar) {
