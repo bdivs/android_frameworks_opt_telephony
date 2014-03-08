@@ -249,6 +249,11 @@ public class RIL extends BaseCommands implements CommandsInterface {
     // When we are testing emergency calls
     AtomicBoolean mTestingEmergencyCall = new AtomicBoolean(false);
 
+<<<<<<< HEAD
+=======
+    protected Integer mInstanceId;
+
+>>>>>>> 7e580a6... RIL: mark mInstanceId as protected
     // Number of per-network elements expected in QUERY_AVAILABLE_NETWORKS's response.
     // 4 elements is default, but many RILs actually return 5, making it impossible to
     // divide the response array without prior knowledge of the number of elements.
