@@ -518,11 +518,7 @@ public class CDMAPhone extends PhoneBase {
 
     @Override
     public String getSubscriberId() {
-<<<<<<< HEAD
         return mSST.getImsi();
-=======
-        return mSST.getNvImsi();
->>>>>>> 51d4aab... telephony: Remove CdmaLteUicc and CDMA fix
     }
 
     @Override
