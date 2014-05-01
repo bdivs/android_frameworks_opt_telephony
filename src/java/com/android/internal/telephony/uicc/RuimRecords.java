@@ -65,7 +65,6 @@ public final class RuimRecords extends IccRecords {
     private String mMin;
     private String mHomeSystemId;
     private String mHomeNetworkId;
-    private boolean mMSIMRecordeEnabled = false;
 
     @Override
     public String toString() {
@@ -373,20 +372,7 @@ public final class RuimRecords extends IccRecords {
                 mMin = builder.toString();
                 if (DBG) log("min present=" + mMin);
             } else {
-<<<<<<< HEAD
                 if (DBG) log("min not present");
-=======
-                if (DBG) log("IMSI not provisioned in card");
-            }
-
-            //Update MccTable with the retrieved IMSI
-            String operatorNumeric = getOperatorNumeric();
-            if (operatorNumeric != null) {
-                if(operatorNumeric.length() <= 6) {
-                    mMSIMRecordeEnabled = true;
-                    MccTable.updateMccMncConfiguration(mContext, operatorNumeric);
-                }
->>>>>>> a7b3e3e... Telephony: Bring back older IMSI method for legacy RIL
             }
         }
     }
@@ -494,7 +480,6 @@ public final class RuimRecords extends IccRecords {
 
                 log("IMSI: " + mImsi.substring(0, 6) + "xxxxxxxxx");
 
-<<<<<<< HEAD
                 String operatorNumeric = getRUIMOperatorNumeric();
                 if (operatorNumeric != null) {
                     if(operatorNumeric.length() <= 6){
@@ -502,15 +487,6 @@ public final class RuimRecords extends IccRecords {
                     }
                 }
             break;
-=======
-                String operatorNumeric = getOperatorNumeric();
-                if (operatorNumeric != null) {
-                    if(operatorNumeric.length() <= 6) {
-                        MccTable.updateMccMncConfiguration(mContext, operatorNumeric);
-                    }
-                }
-                break;
->>>>>>> a7b3e3e... Telephony: Bring back older IMSI method for legacy RIL
 
             case EVENT_GET_CDMA_SUBSCRIPTION_DONE:
                 ar = (AsyncResult)msg.obj;
@@ -688,10 +664,6 @@ public final class RuimRecords extends IccRecords {
         mRecordsRequested = true;
 
         if (DBG) log("fetchRuimRecords " + mRecordsToLoad);
-        if (!mMSIMRecordeEnabled) {
-            mCi.getIMSIForApp(mParentApp.getAid(), obtainMessage(EVENT_GET_IMSI_DONE));
-            mRecordsToLoad++;
-        }
 
         mCi.getIMSIForApp(mParentApp.getAid(), obtainMessage(EVENT_GET_IMSI_DONE));
         mRecordsToLoad++;
